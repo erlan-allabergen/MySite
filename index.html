@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FocusLoot - Idle Gacha RPG</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Outfit', 'sans-serif'],
+            pixel: ['"Press Start 2P"', 'monospace'],
+          },
+          colors: {
+            transcendental: '#f472b6',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Animations & Styles */
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+      overflow-x: hidden;
+      background: #090d16;
+      color: #f3f4f6;
+    }
+
+    /* Glassmorphism containers */
+    .glass-panel {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    /* Floating damage numbers */
+    .damage-num {
+      position: absolute;
+      font-weight: 800;
+      pointer-events: none;
+      animation: floatUp 0.8s ease-out forwards;
+      z-index: 50;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      50% { transform: translateY(-30px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-50px) scale(0.8); }
+    }
+
+    /* Rarity Glows & Shimmers */
+    .rarity-common { border-color: #9ca3af; box-shadow: 0 0 5px rgba(156, 163, 175, 0.2); }
+    .rarity-rare { border-color: #60a5fa; box-shadow: 0 0 10px rgba(96, 165, 250, 0.4); }
+    .rarity-epic { border-color: #c084fc; box-shadow: 0 0 12px rgba(192, 132, 252, 0.5); }
+    .rarity-legendary { border-color: #fbbf24; box-shadow: 0 0 15px rgba(251, 191, 36, 0.6); }
+    .rarity-mythic { border-color: #f87171; box-shadow: 0 0 18px rgba(248, 113, 113, 0.8); }
+    
+    /* Transcendental Layered Cosmic Animation */
+    .rarity-transcendental {
+      border-color: #f472b6;
+      background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2));
+      background-size: 300% 300%;
+      animation: cosmicShift 4s ease infinite, cosmicGlow 2s ease-in-out infinite alternate;
+      box-shadow: 0 0 20px rgba(244, 114, 182, 0.9), inset 0 0 15px rgba(168, 85, 247, 0.5);
+    }
+
+    @keyframes cosmicShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes cosmicGlow {
+      from { box-shadow: 0 0 15px rgba(244, 114, 182, 0.8), 0 0 30px rgba(168, 85, 247, 0.4); }
+      to { box-shadow: 0 0 25px rgba(56, 189, 248, 0.9), 0 0 40px rgba(244, 114, 182, 0.7); }
+    }
+
+    /* Target Monster Shake */
+    @keyframes hitShake {
+      0% { transform: scale(1) translate(0, 0); }
+      25% { transform: scale(0.96) translate(-4px, 4px); }
+      50% { transform: scale(1.02) translate(4px, -4px); }
+      75% { transform: scale(0.98) translate(-2px, -2px); }
+      100% { transform: scale(1) translate(0, 0); }
+    }
+
+    .monster-hit {
+      animation: hitShake 0.15s ease-in-out;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans text-gray-100 selection:bg-purple-500 selection:text-white">
+
+  <!-- Background Particle Canvas -->
+  <canvas id="bgCanvas" class="fixed inset-0 pointer-events-none z-0 opacity-40"></canvas>
+
+  <!-- Top Navigation / Header -->
+  <header class="relative z-10 glass-panel border-b border-gray-800 px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+        <i class="fa-solid font-pixel text-lg text-white">⚡</i>
+      </div>
+      <div>
+        <h1 class="font-bold text-xl tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-300">FocusLoot</h1>
+        <p class="text-xs text-gray-400" id="headerSubtitle">Idle Gacha RPG</p>
+      </div>
+    </div>
+
+    <!-- Currency Bar -->
+    <div class="flex flex-wrap items-center gap-3 text-sm font-semibold">
+      <div class="flex items-center gap-1.5 bg-gray-900/80 px-3 py-1.5 rounded-lg border border-yellow-500/30">
+        <i class="fa-solid fa-coins text-yellow-400"></i>
+        <span id="goldVal">0</span>
+      </div>
+      <div class="flex items-center gap-1.5 bg-gray-900/80 px-3 py-1.5 rounded-lg border border-cyan-500/30">
+        <i class="fa-solid fa-gem text-cyan-400"></i>
+        <span id="gemVal">0</span>
+      </div>
+      <div class="flex items-center gap-1.5 bg-gray-900/80 px-3 py-1.5 rounded-lg border border-purple-500/30">
+        <i class="fa-solid fa-ghost text-purple-400"></i>
+        <span id="soulVal">0</span>
+      </div>
+      <div class="flex items-center gap-1.5 bg-gray-900/80 px-3 py-1.5 rounded-lg border border-blue-400/30">
+        <i class="fa-solid fa-snowflake text-blue-300"></i>
+        <span id="snowVal">0</span>
+      </div>
+    </div>
+
+    <!-- Header Actions (Audio, i18n, Daily) -->
+    <div class="flex items-center gap-2">
+      <button id="audioBtn" class="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs flex items-center gap-2 transition">
+        <i class="fa-solid fa-volume-xmark" id="audioIcon"></i>
+        <span id="audioLabel">Lo-Fi OFF</span>
+      </button>
+
+      <select id="langSelect" class="bg-gray-800 border border-gray-700 text-xs text-gray-200 rounded-lg px-2 py-1.5 focus:outline-none">
+        <option value="ru">RU 🇷🇺</option>
+        <option value="en">EN 🇺🇸</option>
+        <option value="ja">JA 🇯🇵</option>
+      </select>
+
+      <button id="dailyBtn" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-semibold text-xs shadow-md transition flex items-center gap-1.5">
+        <i class="fa-solid fa-calendar-check"></i>
+        <span id="tDailyBtn">Daily</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Game Layout -->
+  <main class="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 max-w-7xl mx-auto w-full">
+
+    <!-- LEFT COLUMN: Combat & Monster Arena (4 cols) -->
+    <section class="lg:col-span-4 flex flex-col gap-4">
+      
+      <!-- Arena Box -->
+      <div id="clickArea" class="glass-panel rounded-2xl p-5 flex flex-col items-center justify-between relative overflow-hidden min-h-[360px] cursor-pointer group">
+        
+        <!-- Stage / Wave Info -->
+        <div class="w-full flex justify-between items-center text-xs text-gray-400 font-semibold z-10">
+          <span id="stageText" class="bg-gray-800/80 px-2.5 py-1 rounded-md border border-gray-700">Stage 1-1</span>
+          <span id="bossTimer" class="hidden text-red-400 font-bold bg-red-950/60 border border-red-800/60 px-2.5 py-1 rounded-md">
+            <i class="fa-solid fa-stopwatch mr-1"></i><span id="bossTimeLeft">30</span>s
+          </span>
+          <span id="rebirthBonusText" class="text-purple-300 bg-purple-950/40 px-2 py-0.5 rounded border border-purple-800/40">+0% Bonus</span>
+        </div>
+
+        <!-- Monster Visual Container -->
+        <div class="relative my-auto flex flex-col items-center justify-center transition-transform active:scale-95" id="monsterContainer">
+          <div id="monsterAura" class="absolute w-36 h-36 rounded-full bg-purple-600/20 blur-xl transition-all"></div>
+          <div id="monsterAvatar" class="text-7xl md:text-8xl select-none filter drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] transition-transform duration-75">
+            👾
+          </div>
+          <p id="monsterName" class="mt-3 font-bold text-lg text-gray-200 tracking-wide">Slime</p>
+        </div>
+
+        <!-- HP Bar -->
+        <div class="w-full z-10">
+          <div class="flex justify-between text-xs text-gray-300 font-semibold mb-1">
+            <span>HP</span>
+            <span id="hpText">100 / 100</span>
+          </div>
+          <div class="w-full bg-gray-900/90 h-4 rounded-full overflow-hidden p-0.5 border border-gray-700/80">
+            <div id="hpFill" class="bg-gradient-to-r from-red-600 to-rose-500 h-full rounded-full transition-all duration-100" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- DPS / Click Stats Footer -->
+        <div class="w-full grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-gray-800/80 text-center text-xs">
+          <div class="bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+            <p class="text-gray-400" id="tClickPower">Click Damage</p>
+            <p class="font-bold text-yellow-400 text-sm" id="statClickPower">1</p>
+          </div>
+          <div class="bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+            <p class="text-gray-400" id="tAutoDps">Auto DPS</p>
+            <p class="font-bold text-indigo-400 text-sm" id="statAutoDps">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rebirth / Prestige Control -->
+      <div class="glass-panel rounded-xl p-4 flex items-center justify-between">
+        <div>
+          <h3 class="font-bold text-sm text-purple-300" id="tRebirthTitle">Rebirth System</h3>
+          <p class="text-xs text-gray-400" id="tRebirthDesc">Reset wave progress for Souls</p>
+        </div>
+        <button id="rebirthBtn" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 font-bold text-xs rounded-lg shadow-lg text-white transition disabled:opacity-50">
+          <span id="tRebirthBtn">Rebirth (+0 Souls)</span>
+        </button>
+      </div>
+
+      <!-- Alchemical Cauldron / Runecraft Altar -->
+      <div class="glass-panel rounded-xl p-4 flex flex-col gap-3">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-sm text-purple-300 flex items-center gap-2">
+            <i class="fa-solid fa-flask text-emerald-400"></i>
+            <span id="tCauldronTitle">Alchemical Cauldron</span>
+          </h3>
+          <span class="text-xs text-emerald-400 font-semibold" id="cauldronStatus">Ready</span>
+        </div>
+        <p class="text-xs text-gray-400" id="tCauldronDesc">Sacrifice gold to perform ancient alchemy ritual for rare gems, snowflakes, and souls!</p>
+
+        <div class="bg-gray-900/60 p-3 rounded-lg border border-gray-800 flex justify-between items-center text-xs">
+          <div>
+            <p class="text-gray-400" id="tCauldronCost">Ritual Cost: <span class="text-yellow-400 font-bold">2,500 Gold</span></p>
+            <p class="text-[10px] text-emerald-400" id="tCauldronYield">Yields Gems, Snowflakes & Souls</p>
+          </div>
+          <button id="transmuteBtn" class="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-bold rounded-lg text-white transition shadow-md">
+            <span id="tTransmuteBtn">Perform Ritual</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT COLUMN: Tabs (Gacha, Stat Upgrades, Inventory, Equipment, Collection) (8 cols) -->
+    <section class="lg:col-span-8 flex flex-col gap-4">
+      
+      <!-- Tab Navigation Header -->
+      <div class="glass-panel rounded-xl p-1.5 flex flex-wrap gap-1 border border-gray-800">
+        <button id="tabGachaBtn" onclick="switchTab('gacha')" class="tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow">
+          <i class="fa-solid fa-box-open mr-1.5"></i><span id="tTabGacha">Gacha Summon</span>
+        </button>
+        <button id="tabUpgradesBtn" onclick="switchTab('upgrades')" class="tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition text-gray-400 hover:text-white">
+          <i class="fa-solid fa-bolt mr-1.5"></i><span id="tTabUpgrades">Gold Upgrades</span>
+        </button>
+        <button id="tabInvBtn" onclick="switchTab('inventory')" class="tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition text-gray-400 hover:text-white">
+          <i class="fa-solid fa-briefcase mr-1.5"></i><span id="tTabInv">Inventory</span> (<span id="invCount">0</span>/60)
+        </button>
+        <button id="tabGearBtn" onclick="switchTab('gear')" class="tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition text-gray-400 hover:text-white">
+          <i class="fa-solid fa-shield-halved mr-1.5"></i><span id="tTabGear">Equipment</span>
+        </button>
+        <button id="tabPokedexBtn" onclick="switchTab('pokedex')" class="tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition text-gray-400 hover:text-white">
+          <i class="fa-solid fa-book-bookmark mr-1.5"></i><span id="tTabPokedex">Collection</span>
+        </button>
+      </div>
+
+      <!-- TAB CONTENT PANELS -->
+
+      <!-- 1. GACHA TAB -->
+      <div id="gachaPanel" class="tab-panel glass-panel rounded-2xl p-5 flex flex-col gap-6">
+        
+        <!-- Banners Selection -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- Gold Chest Banner -->
+          <div id="bannerGold" onclick="selectBanner('gold')" class="cursor-pointer border-2 border-yellow-500 bg-yellow-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-yellow-400">
+            <span class="absolute top-2 right-2 text-[10px] bg-yellow-900/80 text-yellow-300 font-bold px-2 py-0.5 rounded border border-yellow-700">Gold Chest</span>
+            <h4 class="font-bold text-sm text-yellow-200">🪙 Gold Chest</h4>
+            <p class="text-[11px] text-gray-400 mt-1">Summon equipment up to Mythic rarity with Gold.</p>
+            <div class="mt-3 text-xs text-gray-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-coins text-yellow-400"></i>
+              <span>Cost: 5,000 Gold / pull</span>
+            </div>
+          </div>
+
+          <!-- Standard Banner -->
+          <div id="bannerStandard" onclick="selectBanner('standard')" class="cursor-pointer border-2 border-purple-500 bg-purple-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-purple-400">
+            <span class="absolute top-2 right-2 text-[10px] bg-purple-900/80 text-purple-300 font-bold px-2 py-0.5 rounded border border-purple-700">Permanent</span>
+            <h4 class="font-bold text-sm text-purple-200">💎 Cosmic Gem Banner</h4>
+            <p class="text-[11px] text-gray-400 mt-1">Full rate including Transcendental rarity.</p>
+            <div class="mt-3 text-xs text-gray-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-gem text-cyan-400"></i>
+              <span>Cost: 100 Gems / pull</span>
+            </div>
+          </div>
+
+          <!-- New Year Event Banner -->
+          <div id="bannerEvent" onclick="selectBanner('event')" class="cursor-pointer border-2 border-gray-800 bg-cyan-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-cyan-500">
+            <span class="absolute top-2 right-2 text-[10px] bg-cyan-900/80 text-cyan-300 font-bold px-2 py-0.5 rounded border border-cyan-700" id="tEventTag">Event Banner</span>
+            <h4 class="font-bold text-sm text-cyan-200">❄️ Frost & Stars Banner</h4>
+            <p class="text-[11px] text-gray-400 mt-1">4x higher Mythic & Transcendental chances!</p>
+            <div class="mt-3 text-xs text-gray-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-snowflake text-blue-300"></i>
+              <span>Cost: 15 Snowflakes / pull</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pity Progress -->
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800 flex justify-between items-center text-xs">
+          <div>
+            <span class="text-gray-400" id="tPityText">Epic+ Guarantee Pity Counter:</span>
+            <span class="font-bold text-purple-400 ml-1" id="pityVal">0 / 30</span>
+          </div>
+          <div class="w-1/3 bg-gray-800 h-2.5 rounded-full overflow-hidden">
+            <div id="pityBar" class="bg-purple-500 h-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-4 justify-center my-2">
+          <button id="roll1Btn" class="flex-1 min-w-[140px] py-3.5 px-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl font-bold text-sm shadow-lg shadow-purple-600/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-dice"></i>
+            <span id="tRoll1">Summon x1</span>
+          </button>
+
+          <button id="roll10Btn" class="flex-1 min-w-[140px] py-3.5 px-6 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 rounded-xl font-bold text-sm shadow-lg shadow-pink-600/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-cubes"></i>
+            <span id="tRoll10">Summon x10</span>
+          </button>
+        </div>
+
+        <!-- Drop Rates Table Toggle / Info -->
+        <div class="border-t border-gray-800/80 pt-4 text-xs text-gray-400">
+          <p class="font-semibold text-gray-300 mb-2" id="tRarityRatesTitle">Drop Rates Tier Table:</p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-gray-800"><span class="text-gray-400">Common:</span><span>60.0%</span></div>
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-gray-800"><span class="text-blue-400">Rare:</span><span>25.0%</span></div>
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-gray-800"><span class="text-purple-400">Epic:</span><span>10.0%</span></div>
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-gray-800"><span class="text-yellow-400">Legendary:</span><span>4.0%</span></div>
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-gray-800"><span class="text-red-400">Mythic:</span><span>0.95%</span></div>
+            <div class="flex justify-between p-2 rounded bg-gray-900/40 border border-pink-500/30 font-bold"><span class="text-pink-400">Transcendental:</span><span class="text-pink-300">0.05%</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 2. GOLD UPGRADES TAB -->
+      <div id="upgradesPanel" class="tab-panel glass-panel rounded-2xl p-5 hidden flex-col gap-4">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-gray-200" id="tUpgradesTitle">Gold Stat Upgrades</h3>
+            <p class="text-xs text-gray-400" id="tUpgradesDesc">Permanently boost stats using Gold earned from combat</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="upgradesGrid">
+          <!-- Dynamically populated stat upgrade cards -->
+        </div>
+      </div>
+
+      <!-- 3. INVENTORY TAB -->
+      <div id="invPanel" class="tab-panel glass-panel rounded-2xl p-5 hidden flex-col gap-4">
+        
+        <!-- Inventory Actions & Mass Sell -->
+        <div class="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-gray-800">
+          <div class="flex gap-2">
+            <button id="sellCommonBtn" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg text-xs font-semibold transition">
+              <i class="fa-solid fa-trash-can mr-1"></i><span id="tSellCommon">Sell Common</span>
+            </button>
+            <button id="sellRareBtn" class="px-3 py-1.5 bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800 rounded-lg text-xs font-semibold transition">
+              <i class="fa-solid fa-trash-can mr-1"></i><span id="tSellRare">Sell Rare</span>
+            </button>
+          </div>
+
+          <button id="mergeAllBtn" class="px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border border-purple-700 rounded-lg text-xs font-semibold transition">
+            <i class="fa-solid fa-code-merge mr-1"></i><span id="tMerge3to1">Merge 3-to-1</span>
+          </button>
+        </div>
+
+        <!-- Inventory Grid -->
+        <div id="invGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2.5 min-h-[300px] max-h-[420px] overflow-y-auto pr-1">
+          <!-- Dynamically Generated Slots -->
+        </div>
+
+      </div>
+
+      <!-- 4. EQUIPMENT TAB -->
+      <div id="gearPanel" class="tab-panel glass-panel rounded-2xl p-5 hidden flex-col gap-6">
+        
+        <h3 class="font-bold text-base text-gray-200 border-b border-gray-800 pb-2" id="tEquipTitle">Equipped Items</h3>
+
+        <!-- Equipment Slots Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <!-- Weapon -->
+          <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-800 flex flex-col items-center gap-2 text-center" id="slotContainer-weapon">
+            <span class="text-xs text-gray-400 font-semibold" id="tSlotWeapon">Weapon</span>
+            <div id="slot-weapon" class="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-2xl text-gray-600 bg-gray-900/90 relative cursor-pointer hover:border-purple-500 transition">
+              ⚔️
+            </div>
+            <div id="info-weapon" class="text-[11px] text-gray-400">Empty</div>
+          </div>
+
+          <!-- Armor -->
+          <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-800 flex flex-col items-center gap-2 text-center" id="slotContainer-armor">
+            <span class="text-xs text-gray-400 font-semibold" id="tSlotArmor">Armor</span>
+            <div id="slot-armor" class="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-2xl text-gray-600 bg-gray-900/90 relative cursor-pointer hover:border-purple-500 transition">
+              🛡️
+            </div>
+            <div id="info-armor" class="text-[11px] text-gray-400">Empty</div>
+          </div>
+
+          <!-- Amulet -->
+          <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-800 flex flex-col items-center gap-2 text-center" id="slotContainer-amulet">
+            <span class="text-xs text-gray-400 font-semibold" id="tSlotAmulet">Amulet</span>
+            <div id="slot-amulet" class="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-2xl text-gray-600 bg-gray-900/90 relative cursor-pointer hover:border-purple-500 transition">
+              📿
+            </div>
+            <div id="info-amulet" class="text-[11px] text-gray-400">Empty</div>
+          </div>
+
+          <!-- Pet -->
+          <div class="bg-gray-900/60 p-4 rounded-xl border border-gray-800 flex flex-col items-center gap-2 text-center" id="slotContainer-pet">
+            <span class="text-xs text-gray-400 font-semibold" id="tSlotPet">Pet</span>
+            <div id="slot-pet" class="w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-2xl text-gray-600 bg-gray-900/90 relative cursor-pointer hover:border-purple-500 transition">
+              🐉
+            </div>
+            <div id="info-pet" class="text-[11px] text-gray-400">Empty</div>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-400 text-center italic" id="tEquipHint">Click equipped slot to unequip item.</p>
+
+      </div>
+
+      <!-- 5. COLLECTION / POKEDEX TAB -->
+      <div id="pokedexPanel" class="tab-panel glass-panel rounded-2xl p-5 hidden flex-col gap-4">
+        
+        <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-gray-200" id="tPokedexTitle">Collection Book</h3>
+            <p class="text-xs text-gray-400" id="tPokedexDesc">Unlock new gear to stack permanent DPS bonuses!</p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-purple-300 font-bold" id="pokedexBonusText">+0% Stat Boost</span>
+            <p class="text-[11px] text-gray-400" id="pokedexRatioText">0 / 0 Unlocked</p>
+          </div>
+        </div>
+
+        <!-- Pokedex Grid -->
+        <div id="pokedexGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+          <!-- Dynamically Rendered Pokedex Items -->
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- GACHA DROP OVERLAY MODAL -->
+  <div id="gachaModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-panel border border-purple-500/40 rounded-3xl max-w-2xl w-full p-6 flex flex-col items-center gap-6 shadow-2xl relative overflow-hidden animate-fade-in">
+      
+      <h2 class="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300" id="tSummonResultsTitle">Summon Results</h2>
+
+      <!-- Results Grid -->
+      <div id="gachaResultsContainer" class="flex flex-wrap gap-3 justify-center max-h-[60vh] overflow-y-auto p-2 w-full">
+        <!-- Rendered item cards -->
+      </div>
+
+      <button id="closeGachaModalBtn" class="px-8 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg transition transform active:scale-95">
+        <span id="tClaimLootBtn">Collect Loot</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- DAILY CHECK-IN MODAL -->
+  <div id="dailyModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-panel border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 flex flex-col gap-5 shadow-2xl relative">
+      
+      <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+        <h3 class="text-lg font-bold text-amber-300" id="tDailyModalTitle">7-Day Check-in Rewards</h3>
+        <button id="closeDailyModalBtn" class="text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- 7 Days Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs" id="dailyDaysContainer">
+        <!-- JS rendered 7 days -->
+      </div>
+
+      <button id="claimDailyBtn" class="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 font-bold rounded-xl text-white shadow-lg transition disabled:opacity-50">
+        <span id="tClaimDailyBtn">Claim Today's Bonus</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ITEM DETAIL / ENHANCE MODAL -->
+  <div id="itemModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-panel border border-gray-700 rounded-2xl max-w-sm w-full p-5 flex flex-col gap-4 shadow-2xl">
+      
+      <div class="flex justify-between items-start">
+        <div class="flex items-center gap-3">
+          <div id="itemModalIcon" class="w-12 h-12 rounded-xl border flex items-center justify-center text-2xl bg-gray-900">⚔️</div>
+          <div>
+            <h4 id="itemModalName" class="font-bold text-sm text-gray-100">Item Name</h4>
+            <p id="itemModalType" class="text-[11px] text-gray-400">Weapon</p>
+          </div>
+        </div>
+        <button id="closeItemModalBtn" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="bg-gray-900/60 p-3 rounded-xl border border-gray-800 text-xs space-y-1.5">
+        <div class="flex justify-between"><span class="text-gray-400" id="tItemBonusLabel">Bonus Stat:</span><span id="itemModalBonus" class="font-bold text-green-400">+10 Click Damage</span></div>
+        <div class="flex justify-between"><span class="text-gray-400" id="tItemEnhanceLabel">Enhancement Level:</span><span id="itemModalLevel" class="font-bold text-yellow-400">+0</span></div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex flex-col gap-2 pt-2">
+        <button id="equipItemBtn" class="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg text-xs transition">
+          <span id="tEquipBtn">Equip Item</span>
+        </button>
+        <button id="upgradeItemBtn" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs transition">
+          <span id="tEnhanceBtn">Upgrade (+100 Gold)</span>
+        </button>
+        <button id="sellItemBtn" class="w-full py-2.5 bg-red-900/80 hover:bg-red-800 text-red-200 font-semibold rounded-lg text-xs transition">
+          <span id="tSellBtn">Sell Item (+50 Gold)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    /* ==========================================================================
+       1. GAME CONFIGURATION & TRANSLATIONS (i18n)
+       ========================================================================== */
+    
+    const TRANSLATIONS = {
+      ru: {
+        headerSubtitle: "Idle Gacha RPG",
+        tDailyBtn: "Ежедневка",
+        tClickPower: "Урон клика",
+        tAutoDps: "Авто Урон",
+        tRebirthTitle: "Перерождение",
+        tRebirthDesc: "Сброс волн ради Душ",
+        tRebirthBtn: "Переродиться (+0 Душ)",
+        tCauldronTitle: "Алхимический Котел",
+        tCauldronDesc: "Проводите ритуалы алхимии ради кристаллов, снежинок и душ!",
+        tCauldronCost: "Стоимость: ",
+        tCauldronYield: "Дает Кристаллы, Снежинки и Души",
+        tTransmuteBtn: "Ритуал",
+        tTabGacha: "Молитвы",
+        tTabUpgrades: "Прокачка Статов",
+        tTabInv: "Инвентарь",
+        tTabGear: "Снаряжение",
+        tTabPokedex: "Коллекция",
+        tPityText: "Гарант Эпика+: ",
+        tRoll1: "Призыв x1",
+        tRoll10: "Призыв x10",
+        tRarityRatesTitle: "Шансы выпадения предметов:",
+        tUpgradesTitle: "Улучшение Показателей",
+        tUpgradesDesc: "Повышайте боевые характеристики за Золото",
+        tSellCommon: "Продать Обычные",
+        tSellRare: "Продать Редкие",
+        tMerge3to1: "Слияние 3 в 1",
+        tEquipTitle: "Экипированные Предметы",
+        tSlotWeapon: "Оружие",
+        tSlotArmor: "Броня",
+        tSlotAmulet: "Амулет",
+        tSlotPet: "Питомец",
+        tEquipHint: "Нажмите на экипированный слот, чтобы снять предмет.",
+        tPokedexTitle: "Книга Коллекции",
+        tPokedexDesc: "Открывайте предметы для постоянного бонуса урона!",
+        tSummonResultsTitle: "Результаты Призыва",
+        tClaimLootBtn: "Забрать Награды",
+        tDailyModalTitle: "7-Дневные Награды",
+        tClaimDailyBtn: "Забрать Награду Дня",
+        tItemBonusLabel: "Бонус Статов:",
+        tItemEnhanceLabel: "Уровень Заточки:",
+        tEquipBtn: "Надеть Предмет",
+        tEnhanceBtn: "Улучшить",
+        tSellBtn: "Продать Предмет",
+        tEventTag: "Ивент"
+      },
+      en: {
+        headerSubtitle: "Idle Gacha RPG",
+        tDailyBtn: "Daily",
+        tClickPower: "Click Damage",
+        tAutoDps: "Auto DPS",
+        tRebirthTitle: "Rebirth System",
+        tRebirthDesc: "Reset wave progress for Souls",
+        tRebirthBtn: "Rebirth (+0 Souls)",
+        tCauldronTitle: "Alchemical Cauldron",
+        tCauldronDesc: "Perform alchemy rituals for Gems, Snowflakes and Souls!",
+        tCauldronCost: "Ritual Cost: ",
+        tCauldronYield: "Yields Gems, Snowflakes & Souls",
+        tTransmuteBtn: "Perform Ritual",
+        tTabGacha: "Gacha Summon",
+        tTabUpgrades: "Gold Upgrades",
+        tTabInv: "Inventory",
+        tTabGear: "Equipment",
+        tTabPokedex: "Collection",
+        tPityText: "Epic+ Guarantee Pity Counter: ",
+        tRoll1: "Summon x1",
+        tRoll10: "Summon x10",
+        tRarityRatesTitle: "Drop Rates Tier Table:",
+        tUpgradesTitle: "Gold Stat Upgrades",
+        tUpgradesDesc: "Permanently boost stats using Gold earned from combat",
+        tSellCommon: "Sell Common",
+        tSellRare: "Sell Rare",
+        tMerge3to1: "Merge 3-to-1",
+        tEquipTitle: "Equipped Items",
+        tSlotWeapon: "Weapon",
+        tSlotArmor: "Armor",
+        tSlotAmulet: "Amulet",
+        tSlotPet: "Pet",
+        tEquipHint: "Click equipped slot to unequip item.",
+        tPokedexTitle: "Collection Book",
+        tPokedexDesc: "Unlock items to stack permanent DPS bonuses!",
+        tSummonResultsTitle: "Summon Results",
+        tClaimLootBtn: "Collect Loot",
+        tDailyModalTitle: "7-Day Check-in Rewards",
+        tClaimDailyBtn: "Claim Today's Bonus",
+        tItemBonusLabel: "Bonus Stat:",
+        tItemEnhanceLabel: "Enhancement Level:",
+        tEquipBtn: "Equip Item",
+        tEnhanceBtn: "Upgrade",
+        tSellBtn: "Sell Item",
+        tEventTag: "Event Banner"
+      },
+      ja: {
+        headerSubtitle: "放置型ガチャRPG",
+        tDailyBtn: "デイリー",
+        tClickPower: "クリック攻撃力",
+        tAutoDps: "自動DPS",
+        tRebirthTitle: "転生システム",
+        tRebirthDesc: "ソウルのためにステージリセット",
+        tRebirthBtn: "転生 (+0 ソウル)",
+        tCauldronTitle: "錬金術の大釜",
+        tCauldronDesc: "ゴールドを捧げてジェムやスノーフレーク、ソウルを獲得！",
+        tCauldronCost: "儀式費用: ",
+        tCauldronYield: "ジェム、スノーフレーク、ソウルを獲得",
+        tTransmuteBtn: "儀式を行う",
+        tTabGacha: "ガチャ召喚",
+        tTabUpgrades: "ゴールド強化",
+        tTabInv: "インベントリ",
+        tTabGear: "装備",
+        tTabPokedex: "図鑑",
+        tPityText: "エピック以上確定天井: ",
+        tRoll1: "1回召喚",
+        tRoll10: "10回連続召喚",
+        tRarityRatesTitle: "レア度排出確率一覧:",
+        tUpgradesTitle: "ステータス強化",
+        tUpgradesDesc: "ゴールドを消費して永続ステータスアップ",
+        tSellCommon: "ノーマル一括売却",
+        tSellRare: "レア一括売却",
+        tMerge3to1: "3:1 合成",
+        tEquipTitle: "装備中のアイテム",
+        tSlotWeapon: "武器",
+        tSlotArmor: "防具",
+        tSlotAmulet: "アミュレット",
+        tSlotPet: "ペット",
+        tEquipHint: "スロットをクリックして装備を解除",
+        tPokedexTitle: "図鑑コレクション",
+        tPokedexDesc: "図鑑を埋めて永続DPSボーナスを獲得！",
+        tSummonResultsTitle: "召喚結果",
+        tClaimLootBtn: "戦利品を獲得",
+        tDailyModalTitle: "7日間のログインボーナス",
+        tClaimDailyBtn: "本日のボーナスを受け取る",
+        tItemBonusLabel: "ステータスボーナス:",
+        tItemEnhanceLabel: "強化レベル:",
+        tEquipBtn: "装備する",
+        tEnhanceBtn: "強化する",
+        tSellBtn: "売却する",
+        tEventTag: "イベント"
+      }
+    };
+
+    // Rarity Hierarchy Definitions
+    const RARITIES = {
+      common: { name: "Обычный", color: "text-gray-400", border: "rarity-common", rate: 0.60, valMultiplier: 1 },
+      rare: { name: "Редкий", color: "text-blue-400", border: "rarity-rare", rate: 0.25, valMultiplier: 2.5 },
+      epic: { name: "Эпический", color: "text-purple-400", border: "rarity-epic", rate: 0.10, valMultiplier: 6 },
+      legendary: { name: "Легендарный", color: "text-yellow-400", border: "rarity-legendary", rate: 0.04, valMultiplier: 15 },
+      mythic: { name: "Мифический", color: "text-red-400", border: "rarity-mythic", rate: 0.0095, valMultiplier: 40 },
+      transcendental: { name: "Трансцендентный", color: "text-pink-400 font-bold", border: "rarity-transcendental", rate: 0.0005, valMultiplier: 120 }
+    };
+
+    // Base Database of Lootable Items
+    const ITEM_DATABASE = [
+      // Weapons
+      { id: "w_1", name: "Wooden Sword", type: "weapon", icon: "🗡️", rarity: "common", baseBonus: 2 },
+      { id: "w_2", name: "Steel Dagger", type: "weapon", icon: "🗡️", rarity: "rare", baseBonus: 8 },
+      { id: "w_3", name: "Rune Blade", type: "weapon", icon: "⚔️", rarity: "epic", baseBonus: 25 },
+      { id: "w_4", name: "Excalibur", type: "weapon", icon: "⚔️", rarity: "legendary", baseBonus: 80 },
+      { id: "w_5", name: "Doombringer", type: "weapon", icon: "🪓", rarity: "mythic", baseBonus: 250 },
+      { id: "w_6", name: "Cosmic Blade of Eternity", type: "weapon", icon: "🌌", rarity: "transcendental", baseBonus: 1000 },
+
+      // Armor
+      { id: "a_1", name: "Cloth Tunic", type: "armor", icon: "👕", rarity: "common", baseBonus: 1 },
+      { id: "a_2", name: "Iron Chainmail", type: "armor", icon: "🛡️", rarity: "rare", baseBonus: 5 },
+      { id: "a_3", name: "Dragon Scale Coat", type: "armor", icon: "🛡️", rarity: "epic", baseBonus: 18 },
+      { id: "a_4", name: "Aegis Plate", type: "armor", icon: "🛡️", rarity: "legendary", baseBonus: 60 },
+      { id: "a_5", name: "Void Cuirass", type: "armor", icon: "🎽", rarity: "mythic", baseBonus: 200 },
+      { id: "a_6", name: "Starlight Celestial Aegis", type: "armor", icon: "✨", rarity: "transcendental", baseBonus: 850 },
+
+      // Amulets
+      { id: "m_1", name: "Copper Pendant", type: "amulet", icon: "📿", rarity: "common", baseBonus: 1 },
+      { id: "m_2", name: "Silver Choker", type: "amulet", icon: "📿", rarity: "rare", baseBonus: 4 },
+      { id: "m_3", name: "Ruby Talisman", type: "amulet", icon: "💎", rarity: "epic", baseBonus: 15 },
+      { id: "m_4", name: "Orb of Wisdom", type: "amulet", icon: "🔮", rarity: "legendary", baseBonus: 50 },
+      { id: "m_5", name: "Eye of Chaos", type: "amulet", icon: "👁️", rarity: "mythic", baseBonus: 180 },
+      { id: "m_6", name: "Heart of the Supernova", type: "amulet", icon: "🌟", rarity: "transcendental", baseBonus: 750 },
+
+      // Pets
+      { id: "p_1", name: "Tiny Slime", type: "pet", icon: "🟢", rarity: "common", baseBonus: 2 },
+      { id: "p_2", name: "Wild Bat", type: "pet", icon: "🦇", rarity: "rare", baseBonus: 6 },
+      { id: "p_3", name: "Fire Elemental", type: "pet", icon: "🔥", rarity: "epic", baseBonus: 20 },
+      { id: "p_4", name: "Baby Dragon", type: "pet", icon: "🐉", rarity: "legendary", baseBonus: 70 },
+      { id: "p_5", name: "Void Phoenix", type: "pet", icon: "🦅", rarity: "mythic", baseBonus: 220 },
+      { id: "p_6", name: "Chronos Cosmic Serpent", type: "pet", icon: "🐍", rarity: "transcendental", baseBonus: 950 }
+    ];
+
+    // Monster Avatars pool
+    const MONSTER_POOL = [
+      { name: "Slime", icon: "👾" },
+      { name: "Goblin", icon: "👺" },
+      { name: "Skeleton", icon: "💀" },
+      { name: "Ghost", icon: "👻" },
+      { name: "Orc", icon: "👹" },
+      { name: "Golem", icon: "🗿" },
+      { name: "Demon", icon: "👿" }
+    ];
+
+    /* ==========================================================================
+       2. STATE MANAGEMENT & FAILSAFE LOAD/SAVE
+       ========================================================================== */
+
+    const INITIAL_STATE = {
+      lang: "ru",
+      gold: 1000,
+      gems: 300,
+      souls: 0,
+      snowflakes: 50,
+      wave: 1,
+      monsterHp: 20,
+      monsterMaxHp: 20,
+      isBoss: false,
+      pityCount: 0,
+      selectedBanner: "standard", // 'gold', 'standard', 'event'
+      inventory: [],
+      maxInvSlots: 60,
+      equipped: { weapon: null, armor: null, amulet: null, pet: null },
+      pokedex: [], // array of discovered item IDs
+      dailyLastClaim: 0,
+      dailyStreak: 0,
+
+      // GOLD STAT UPGRADES LEVELS
+      statLevels: {
+        clickPower: 0,
+        autoDps: 0,
+        critChance: 0,
+        critDamage: 0,
+        goldBonus: 0,
+        luckBoost: 0
+      }
+    };
+
+    let gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
+    let bossTimerInterval = null;
+    let bossTimeLeft = 30;
+    let selectedInvIndex = -1;
+
+    // Gold Upgrades Definitions
+    const STAT_UPGRADES_CONFIG = {
+      clickPower: { name: { ru: "Сила Клика", en: "Click Damage", ja: "クリック攻撃力" }, icon: "⚡", baseCost: 100, costMult: 1.35, perLevel: 3, unit: "" },
+      autoDps: { name: { ru: "Авто-Атака (DPS)", en: "Auto Attack DPS", ja: "自動攻撃DPS" }, icon: "🗡️", baseCost: 150, costMult: 1.4, perLevel: 2, unit: "" },
+      critChance: { name: { ru: "Шанс Крита", en: "Crit Chance", ja: "クリティカル率" }, icon: "🎯", baseCost: 300, costMult: 1.6, perLevel: 1, maxLevel: 50, unit: "%" },
+      critDamage: { name: { ru: "Урон Крита", en: "Crit Damage", ja: "クリティカルダメージ" }, icon: "💥", baseCost: 250, costMult: 1.5, perLevel: 15, unit: "%" },
+      goldBonus: { name: { ru: "Бонус Золота", en: "Gold Bonus", ja: "ゴールドボーナス" }, icon: "🪙", baseCost: 200, costMult: 1.45, perLevel: 10, unit: "%" },
+      luckBoost: { name: { ru: "Удача / Дроп", en: "Luck / Drop Rate", ja: "幸運度" }, icon: "🍀", baseCost: 500, costMult: 1.8, perLevel: 2, maxLevel: 25, unit: "%" }
+    };
+
+    function loadGame() {
+      try {
+        const saved = localStorage.getItem("focusLootSave_v2");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          gameState = Object.assign({}, INITIAL_STATE, parsed);
+          if (!gameState.statLevels) gameState.statLevels = JSON.parse(JSON.stringify(INITIAL_STATE.statLevels));
+        }
+      } catch (e) {
+        console.error("Failed to load save file, using defaults:", e);
+        gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
+      }
+    }
+
+    function saveGame() {
+      try {
+        localStorage.setItem("focusLootSave_v2", JSON.stringify(gameState));
+      } catch (e) {
+        console.error("Auto-save failed:", e);
+      }
+    }
+
+    /* ==========================================================================
+       3. STAT CALCULATIONS & COMBAT LOGIC
+       ========================================================================== */
+
+    function getPokedexBonus() {
+      const total = ITEM_DATABASE.length;
+      const unlocked = gameState.pokedex.length;
+      return (unlocked / total) * 1.5; // +150% boost at 100% completion
+    }
+
+    function getRebirthMultiplier() {
+      return 1 + (gameState.souls * 0.1); // Each soul gives +10% boost
+    }
+
+    function getGoldMultiplier() {
+      const level = gameState.statLevels.goldBonus || 0;
+      return 1 + (level * 0.10); // +10% Gold per level
+    }
+
+    function getCritChance() {
+      const level = gameState.statLevels.critChance || 0;
+      return Math.min(75, level * 1); // Max 75%
+    }
+
+    function getCritMultiplier() {
+      const level = gameState.statLevels.critDamage || 0;
+      return 1.5 + (level * 0.15); // Base 150% + 15% per level
+    }
+
+    function getClickPower() {
+      let base = 1 + (gameState.statLevels.clickPower * 3);
+      const dexMult = 1 + getPokedexBonus();
+      const soulMult = getRebirthMultiplier();
+
+      // Add gear bonuses
+      for (let key in gameState.equipped) {
+        const item = gameState.equipped[key];
+        if (item) {
+          const enhanceMult = 1 + (item.level * 0.25);
+          base += item.baseBonus * enhanceMult;
+        }
+      }
+
+      return Math.floor(base * dexMult * soulMult);
+    }
+
+    function getAutoDps() {
+      let base = (gameState.statLevels.autoDps * 2);
+      const dexMult = 1 + getPokedexBonus();
+      const soulMult = getRebirthMultiplier();
+
+      for (let key in gameState.equipped) {
+        const item = gameState.equipped[key];
+        if (item) {
+          const enhanceMult = 1 + (item.level * 0.25);
+          base += (item.baseBonus * 0.4) * enhanceMult;
+        }
+      }
+
+      return Math.floor(base * dexMult * soulMult);
+    }
+
+    function updateMonsterHp(damage, isCrit = false) {
+      gameState.monsterHp -= damage;
+
+      // Spawn damage text
+      spawnDamageText(damage, isCrit);
+
+      // Trigger hit shake animation
+      const avatar = document.getElementById("monsterAvatar");
+      avatar.classList.remove("monster-hit");
+      void avatar.offsetWidth; // trigger reflow
+      avatar.classList.add("monster-hit");
+
+      if (gameState.monsterHp <= 0) {
+        onMonsterDefeated();
+      } else {
+        renderHpBar();
+      }
+    }
+
+    function handleManualClick() {
+      let dmg = getClickPower();
+      let isCrit = false;
+
+      const chance = getCritChance();
+      if (Math.random() * 100 < chance) {
+        isCrit = true;
+        dmg = Math.floor(dmg * getCritMultiplier());
+      }
+
+      updateMonsterHp(dmg, isCrit);
+    }
+
+    function spawnDamageText(dmg, isCrit = false) {
+      const container = document.getElementById("clickArea");
+      const num = document.createElement("div");
+      
+      if (isCrit) {
+        num.className = "damage-num text-red-400 text-2xl font-black tracking-widest scale-125";
+        num.innerText = `CRIT -${dmg}!`;
+      } else {
+        num.className = "damage-num text-yellow-300 text-lg font-extrabold";
+        num.innerText = `-${dmg}`;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const x = (rect.width / 2) + (Math.random() * 80 - 40);
+      const y = (rect.height / 2) + (Math.random() * 40 - 20);
+
+      num.style.left = `${x}px`;
+      num.style.top = `${y}px`;
+
+      container.appendChild(num);
+      setTimeout(() => num.remove(), 800);
+    }
+
+    function onMonsterDefeated() {
+      // Rewards scale with wave and gold multiplier
+      const baseGold = 10 * Math.pow(1.15, gameState.wave - 1) * (gameState.isBoss ? 5 : 1);
+      const goldEarned = Math.floor(baseGold * getGoldMultiplier());
+
+      const luckLevel = gameState.statLevels.luckBoost || 0;
+      const gemChance = 0.2 + (luckLevel * 0.02);
+      const gemsEarned = gameState.isBoss ? 15 : (Math.random() < gemChance ? 2 : 0);
+
+      gameState.gold += goldEarned;
+      gameState.gems += gemsEarned;
+
+      if (gameState.isBoss) {
+        clearInterval(bossTimerInterval);
+        document.getElementById("bossTimer").classList.add("hidden");
+        gameState.isBoss = false;
+      }
+
+      gameState.wave += 1;
+      spawnNewMonster();
+      updateUI();
+      saveGame();
+    }
+
+    function spawnNewMonster() {
+      const isBossWave = (gameState.wave % 5 === 0);
+      gameState.isBoss = isBossWave;
+
+      const baseHp = Math.floor(20 * Math.pow(1.22, gameState.wave - 1));
+      gameState.monsterMaxHp = isBossWave ? baseHp * 4 : baseHp;
+      gameState.monsterHp = gameState.monsterMaxHp;
+
+      const mon = MONSTER_POOL[Math.floor(Math.random() * MONSTER_POOL.length)];
+      document.getElementById("monsterAvatar").innerText = isBossWave ? "👑" : mon.icon;
+      document.getElementById("monsterName").innerText = isBossWave ? `BOSS ${mon.name}` : mon.name;
+
+      if (isBossWave) {
+        bossTimeLeft = 30;
+        document.getElementById("bossTimer").classList.remove("hidden");
+        document.getElementById("bossTimeLeft").innerText = bossTimeLeft;
+        clearInterval(bossTimerInterval);
+        bossTimerInterval = setInterval(() => {
+          bossTimeLeft--;
+          document.getElementById("bossTimeLeft").innerText = bossTimeLeft;
+          if (bossTimeLeft <= 0) {
+            clearInterval(bossTimerInterval);
+            gameState.wave = Math.max(1, gameState.wave - 1);
+            spawnNewMonster();
+            updateUI();
+          }
+        }, 1000);
+      }
+
+      renderHpBar();
+    }
+
+    function renderHpBar() {
+      const percent = Math.max(0, (gameState.monsterHp / gameState.monsterMaxHp) * 100);
+      document.getElementById("hpFill").style.width = `${percent}%`;
+      document.getElementById("hpText").innerText = `${Math.ceil(gameState.monsterHp)} / ${gameState.monsterMaxHp}`;
+    }
+
+    /* ==========================================================================
+       4. GACHA SYSTEM & BANNERS (WITH GOLD CHEST)
+       ========================================================================== */
+
+    function selectBanner(type) {
+      gameState.selectedBanner = type;
+      const bGold = document.getElementById("bannerGold");
+      const bStd = document.getElementById("bannerStandard");
+      const bEvt = document.getElementById("bannerEvent");
+
+      bGold.className = "cursor-pointer border-2 border-gray-800 bg-yellow-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-yellow-500";
+      bStd.className = "cursor-pointer border-2 border-gray-800 bg-purple-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-purple-400";
+      bEvt.className = "cursor-pointer border-2 border-gray-800 bg-cyan-950/20 rounded-xl p-3.5 relative overflow-hidden transition hover:border-cyan-500";
+
+      if (type === 'gold') {
+        bGold.className = "cursor-pointer border-2 border-yellow-500 bg-yellow-950/20 rounded-xl p-3.5 relative overflow-hidden transition shadow-lg shadow-yellow-500/20";
+      } else if (type === 'standard') {
+        bStd.className = "cursor-pointer border-2 border-purple-500 bg-purple-950/20 rounded-xl p-3.5 relative overflow-hidden transition shadow-lg shadow-purple-500/20";
+      } else {
+        bEvt.className = "cursor-pointer border-2 border-cyan-500 bg-cyan-950/20 rounded-xl p-3.5 relative overflow-hidden transition shadow-lg shadow-cyan-500/20";
+      }
+    }
+
+    function performRoll() {
+      gameState.pityCount++;
+      let chosenRarity = "common";
+
+      // Pity check (guaranteed Epic+ at 30 pulls)
+      if (gameState.pityCount >= 30) {
+        gameState.pityCount = 0;
+        const epicRoll = Math.random();
+        if (epicRoll < 0.70) chosenRarity = "epic";
+        else if (epicRoll < 0.93) chosenRarity = "legendary";
+        else if (epicRoll < 0.99) chosenRarity = "mythic";
+        else chosenRarity = (gameState.selectedBanner === 'gold') ? "mythic" : "transcendental";
+      } else {
+        const rand = Math.random();
+        const luckLevel = gameState.statLevels.luckBoost || 0;
+        const luckBonus = luckLevel * 0.001; // subtle luck boost
+
+        if (gameState.selectedBanner === 'gold') {
+          // Gold chest: Up to Mythic
+          if (rand < 0.005 + luckBonus) chosenRarity = "mythic";
+          else if (rand < 0.03 + luckBonus) chosenRarity = "legendary";
+          else if (rand < 0.12) chosenRarity = "epic";
+          else if (rand < 0.35) chosenRarity = "rare";
+          else chosenRarity = "common";
+        } else if (gameState.selectedBanner === 'event') {
+          // Event Banner: Higher Mythic & Transcendental
+          if (rand < 0.002 + luckBonus) chosenRarity = "transcendental";
+          else if (rand < 0.03 + luckBonus) chosenRarity = "mythic";
+          else if (rand < 0.10) chosenRarity = "legendary";
+          else if (rand < 0.25) chosenRarity = "epic";
+          else if (rand < 0.50) chosenRarity = "rare";
+          else chosenRarity = "common";
+        } else {
+          // Standard Gem Banner
+          if (rand < 0.0005 + luckBonus) chosenRarity = "transcendental";
+          else if (rand < 0.01 + luckBonus) chosenRarity = "mythic";
+          else if (rand < 0.05) chosenRarity = "legendary";
+          else if (rand < 0.15) chosenRarity = "epic";
+          else if (rand < 0.40) chosenRarity = "rare";
+          else chosenRarity = "common";
+        }
+
+        if (["epic", "legendary", "mythic", "transcendental"].includes(chosenRarity)) {
+          gameState.pityCount = 0;
+        }
+      }
+
+      const candidates = ITEM_DATABASE.filter(i => i.rarity === chosenRarity);
+      const template = candidates[Math.floor(Math.random() * candidates.length)];
+
+      const itemInstance = {
+        uid: "item_" + Date.now() + "_" + Math.floor(Math.random()*1000),
+        id: template.id,
+        name: template.name,
+        type: template.type,
+        icon: template.icon,
+        rarity: template.rarity,
+        baseBonus: template.baseBonus,
+        level: 0
+      };
+
+      if (!gameState.pokedex.includes(template.id)) {
+        gameState.pokedex.push(template.id);
+      }
+
+      return itemInstance;
+    }
+
+    function handleGachaPull(count) {
+      let costPerPull = 100;
+      let currency = 'gems';
+
+      if (gameState.selectedBanner === 'gold') {
+        costPerPull = 5000;
+        currency = 'gold';
+      } else if (gameState.selectedBanner === 'event') {
+        costPerPull = 15;
+        currency = 'snowflakes';
+      }
+
+      const totalCost = costPerPull * count;
+
+      if (gameState[currency] < totalCost) {
+        alert(`Not enough ${currency.toUpperCase()}! Requires ${totalCost.toLocaleString()}.`);
+        return;
+      }
+
+      if (gameState.inventory.length + count > gameState.maxInvSlots) {
+        alert("Inventory full! Please clear inventory slots first.");
+        return;
+      }
+
+      gameState[currency] -= totalCost;
+
+      const results = [];
+      for (let i = 0; i < count; i++) {
+        const item = performRoll();
+        gameState.inventory.push(item);
+        results.push(item);
+      }
+
+      showGachaResultsModal(results);
+      updateUI();
+      saveGame();
+    }
+
+    function showGachaResultsModal(items) {
+      const container = document.getElementById("gachaResultsContainer");
+      container.innerHTML = "";
+
+      items.forEach(item => {
+        const rarityMeta = RARITIES[item.rarity];
+        const card = document.createElement("div");
+        card.className = `w-28 p-3 rounded-2xl border-2 ${rarityMeta.border} bg-gray-900 flex flex-col items-center gap-1 text-center shadow-lg transform transition hover:scale-105`;
+        card.innerHTML = `
+          <div class="text-3xl mb-1">${item.icon}</div>
+          <p class="font-bold text-xs truncate w-full text-gray-200">${item.name}</p>
+          <span class="text-[10px] ${rarityMeta.color} font-semibold">${rarityMeta.name}</span>
+          <span class="text-[10px] text-green-400 font-mono mt-1">+${item.baseBonus} Stat</span>
+        `;
+        container.appendChild(card);
+      });
+
+      document.getElementById("gachaModal").classList.remove("hidden");
+      document.getElementById("gachaModal").classList.add("flex");
+    }
+
+    /* ==========================================================================
+       5. GOLD STAT UPGRADES PANEL RENDERING & PURCHASE
+       ========================================================================== */
+
+    function renderUpgradesPanel() {
+      const grid = document.getElementById("upgradesGrid");
+      grid.innerHTML = "";
+
+      const lang = gameState.lang || "ru";
+
+      for (let key in STAT_UPGRADES_CONFIG) {
+        const conf = STAT_UPGRADES_CONFIG[key];
+        const lvl = gameState.statLevels[key] || 0;
+        const maxed = conf.maxLevel && lvl >= conf.maxLevel;
+
+        const cost = Math.floor(conf.baseCost * Math.pow(conf.costMult, lvl));
+        const currentBonus = lvl * conf.perLevel;
+        const nextBonus = (lvl + 1) * conf.perLevel;
+
+        const card = document.createElement("div");
+        card.className = "glass-panel p-4 rounded-xl flex items-center justify-between gap-3 border border-gray-800 hover:border-purple-500/40 transition";
+
+        card.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center text-xl">
+              ${conf.icon}
+            </div>
+            <div>
+              <h4 class="font-bold text-xs text-gray-200">${conf.name[lang] || conf.name['en']}</h4>
+              <p class="text-[11px] text-gray-400">
+                Lvl <span class="text-purple-300 font-bold">${lvl}</span> ${conf.maxLevel ? `/ ${conf.maxLevel}` : ''}
+                • <span class="text-emerald-400 font-semibold">+${currentBonus}${conf.unit}</span>
+              </p>
+            </div>
+          </div>
+
+          <button onclick="buyStatUpgrade('${key}')" ${maxed ? 'disabled' : ''} class="px-3 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 disabled:opacity-40 disabled:pointer-events-none rounded-lg text-white font-bold text-xs shadow-md transition flex flex-col items-center min-w-[90px]">
+            <span>${maxed ? 'MAX' : 'Upgrade'}</span>
+            ${!maxed ? `<span class="text-[10px] text-yellow-200 font-normal">🪙 ${cost.toLocaleString()}</span>` : ''}
+          </button>
+        `;
+
+        grid.appendChild(card);
+      }
+    }
+
+    function buyStatUpgrade(key) {
+      const conf = STAT_UPGRADES_CONFIG[key];
+      const lvl = gameState.statLevels[key] || 0;
+
+      if (conf.maxLevel && lvl >= conf.maxLevel) return;
+
+      const cost = Math.floor(conf.baseCost * Math.pow(conf.costMult, lvl));
+
+      if (gameState.gold < cost) {
+        alert("Not enough Gold!");
+        return;
+      }
+
+      gameState.gold -= cost;
+      gameState.statLevels[key] = lvl + 1;
+
+      renderUpgradesPanel();
+      updateUI();
+      saveGame();
+    }
+
+    /* ==========================================================================
+       6. ALCHEMICAL CAULDRON (RITUALS)
+       ========================================================================== */
+
+    function performCauldronRitual() {
+      const cost = 2500;
+      if (gameState.gold < cost) {
+        alert("Not enough Gold to perform Alchemical Ritual! Requires 2,500 Gold.");
+        return;
+      }
+
+      gameState.gold -= cost;
+
+      // Yield rewards
+      const gemsEarned = Math.floor(Math.random() * 30) + 20; // 20 - 50 Gems
+      const snowflakesEarned = Math.floor(Math.random() * 8) + 3; // 3 - 10 Snowflakes
+      const soulsEarned = Math.random() < 0.3 ? 1 : 0; // 30% chance for +1 Soul
+
+      gameState.gems += gemsEarned;
+      gameState.snowflakes += snowflakesEarned;
+      gameState.souls += soulsEarned;
+
+      updateUI();
+      saveGame();
+
+      alert(`🔮 Alchemical Ritual Successful!\nReceived:\n+${gemsEarned} Gems 💎\n+${snowflakesEarned} Snowflakes ❄️${soulsEarned > 0 ? `\n+${soulsEarned} Soul 👻` : ''}`);
+    }
+
+    /* ==========================================================================
+       7. INVENTORY, EQUIPMENT & COLLECTION BOOK
+       ========================================================================== */
+
+    function renderInventory() {
+      const grid = document.getElementById("invGrid");
+      grid.innerHTML = "";
+      document.getElementById("invCount").innerText = gameState.inventory.length;
+
+      for (let i = 0; i < gameState.maxInvSlots; i++) {
+        const slot = document.createElement("div");
+        const item = gameState.inventory[i];
+
+        if (item) {
+          const rarityMeta = RARITIES[item.rarity];
+          slot.className = `w-full aspect-square rounded-xl border-2 ${rarityMeta.border} bg-gray-900/80 flex flex-col items-center justify-center relative cursor-pointer hover:border-purple-400 transition group p-1`;
+          slot.onclick = () => openItemModal(i);
+
+          slot.innerHTML = `
+            <span class="text-2xl">${item.icon}</span>
+            ${item.level > 0 ? `<span class="absolute top-1 right-1 text-[9px] font-bold bg-amber-500 text-black px-1 rounded">+${item.level}</span>` : ''}
+            <span class="text-[9px] text-gray-400 truncate w-full text-center mt-1">${item.name}</span>
+          `;
+        } else {
+          slot.className = "w-full aspect-square rounded-xl border border-dashed border-gray-800 bg-gray-950/40 flex items-center justify-center text-gray-700 text-xs";
+          slot.innerText = `${i+1}`;
+        }
+        grid.appendChild(slot);
+      }
+    }
+
+    function openItemModal(index) {
+      selectedInvIndex = index;
+      const item = gameState.inventory[index];
+      if (!item) return;
+
+      const rarityMeta = RARITIES[item.rarity];
+      document.getElementById("itemModalIcon").innerText = item.icon;
+      document.getElementById("itemModalIcon").className = `w-12 h-12 rounded-xl border-2 ${rarityMeta.border} flex items-center justify-center text-2xl bg-gray-900`;
+      document.getElementById("itemModalName").innerText = item.name;
+      document.getElementById("itemModalType").innerText = `${item.type.toUpperCase()} • ${rarityMeta.name}`;
+
+      const statVal = Math.floor(item.baseBonus * (1 + item.level * 0.25));
+      document.getElementById("itemModalBonus").innerText = `+${statVal} Stat Power`;
+      document.getElementById("itemModalLevel").innerText = `+${item.level}`;
+
+      const upgradeCost = Math.floor(150 * Math.pow(1.5, item.level));
+      const sellGold = Math.floor(25 * rarityMeta.valMultiplier);
+
+      document.getElementById("upgradeItemBtn").innerHTML = `<span id="tEnhanceBtn">Upgrade (+${upgradeCost} Gold)</span>`;
+      document.getElementById("sellItemBtn").innerHTML = `<span id="tSellBtn">Sell Item (+${sellGold} Gold)</span>`;
+
+      document.getElementById("itemModal").classList.remove("hidden");
+      document.getElementById("itemModal").classList.add("flex");
+    }
+
+    function equipSelectedItem() {
+      if (selectedInvIndex < 0) return;
+      const item = gameState.inventory[selectedInvIndex];
+
+      const currentEquipped = gameState.equipped[item.type];
+      if (currentEquipped) {
+        gameState.inventory[selectedInvIndex] = currentEquipped;
+      } else {
+        gameState.inventory.splice(selectedInvIndex, 1);
+      }
+
+      gameState.equipped[item.type] = item;
+      closeModals();
+      updateUI();
+      saveGame();
+    }
+
+    function unequipItem(slotType) {
+      const item = gameState.equipped[slotType];
+      if (!item) return;
+
+      if (gameState.inventory.length >= gameState.maxInvSlots) {
+        alert("Inventory full! Clear space before unequipping.");
+        return;
+      }
+
+      gameState.inventory.push(item);
+      gameState.equipped[slotType] = null;
+      updateUI();
+      saveGame();
+    }
+
+    function upgradeSelectedItem() {
+      if (selectedInvIndex < 0) return;
+      const item = gameState.inventory[selectedInvIndex];
+      const upgradeCost = Math.floor(150 * Math.pow(1.5, item.level));
+
+      if (gameState.gold < upgradeCost) {
+        alert("Not enough Gold for upgrade!");
+        return;
+      }
+
+      gameState.gold -= upgradeCost;
+      item.level += 1;
+      openItemModal(selectedInvIndex);
+      updateUI();
+      saveGame();
+    }
+
+    function sellSelectedItem() {
+      if (selectedInvIndex < 0) return;
+      const item = gameState.inventory[selectedInvIndex];
+      const rarityMeta = RARITIES[item.rarity];
+      const sellGold = Math.floor(25 * rarityMeta.valMultiplier);
+
+      gameState.gold += sellGold;
+      gameState.inventory.splice(selectedInvIndex, 1);
+      closeModals();
+      updateUI();
+      saveGame();
+    }
+
+    function massSell(rarityKey) {
+      let soldCount = 0;
+      let totalGold = 0;
+
+      gameState.inventory = gameState.inventory.filter(item => {
+        if (item.rarity === rarityKey) {
+          soldCount++;
+          totalGold += Math.floor(25 * RARITIES[rarityKey].valMultiplier);
+          return false;
+        }
+        return true;
+      });
+
+      gameState.gold += totalGold;
+      alert(`Mass sold ${soldCount} items for +${totalGold.toLocaleString()} Gold!`);
+      updateUI();
+      saveGame();
+    }
+
+    function mergeThreeToOne() {
+      const groups = {};
+      gameState.inventory.forEach((item, idx) => {
+        const key = `${item.id}_${item.level}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(idx);
+      });
+
+      let merged = false;
+      for (let key in groups) {
+        if (groups[key].length >= 3) {
+          const indicesToRemove = groups[key].slice(0, 3).sort((a, b) => b - a);
+          const baseItem = gameState.inventory[indicesToRemove[0]];
+
+          indicesToRemove.forEach(i => gameState.inventory.splice(i, 1));
+          baseItem.level += 1;
+          gameState.inventory.push(baseItem);
+          merged = true;
+          break;
+        }
+      }
+
+      if (merged) {
+        alert("Merged 3 identical items into a +1 Enhanced Item!");
+        updateUI();
+        saveGame();
+      } else {
+        alert("No 3 identical items (same item & same upgrade level) found to merge!");
+      }
+    }
+
+    function renderEquippedSlots() {
+      ['weapon', 'armor', 'amulet', 'pet'].forEach(type => {
+        const item = gameState.equipped[type];
+        const slotEl = document.getElementById(`slot-${type}`);
+        const infoEl = document.getElementById(`info-${type}`);
+
+        if (item) {
+          const rarityMeta = RARITIES[item.rarity];
+          slotEl.className = `w-16 h-16 rounded-xl border-2 ${rarityMeta.border} bg-gray-900 flex items-center justify-center text-3xl cursor-pointer shadow-lg relative`;
+          slotEl.onclick = () => unequipItem(type);
+          slotEl.innerHTML = `
+            ${item.icon}
+            ${item.level > 0 ? `<span class="absolute top-1 right-1 text-[9px] font-bold bg-amber-500 text-black px-1 rounded">+${item.level}</span>` : ''}
+          `;
+          infoEl.innerHTML = `<span class="${rarityMeta.color} font-bold">${item.name}</span>`;
+        } else {
+          slotEl.className = "w-16 h-16 rounded-xl border-2 border-dashed border-gray-700 flex items-center justify-center text-2xl text-gray-600 bg-gray-900/90 cursor-pointer hover:border-purple-500 transition";
+          slotEl.onclick = null;
+          slotEl.innerText = type === 'weapon' ? '⚔️' : type === 'armor' ? '🛡️' : type === 'amulet' ? '📿' : '🐉';
+          infoEl.innerText = "Empty";
+        }
+      });
+    }
+
+    function renderPokedex() {
+      const container = document.getElementById("pokedexGrid");
+      container.innerHTML = "";
+
+      const totalCount = ITEM_DATABASE.length;
+      const unlockedCount = gameState.pokedex.length;
+      const bonusPct = (getPokedexBonus() * 100).toFixed(1);
+
+      document.getElementById("pokedexBonusText").innerText = `+${bonusPct}% Stat Boost`;
+      document.getElementById("pokedexRatioText").innerText = `${unlockedCount} / ${totalCount} Unlocked`;
+
+      ITEM_DATABASE.forEach(dbItem => {
+        const isUnlocked = gameState.pokedex.includes(dbItem.id);
+        const card = document.createElement("div");
+
+        if (isUnlocked) {
+          const rarityMeta = RARITIES[dbItem.rarity];
+          card.className = `w-full aspect-square rounded-xl border-2 ${rarityMeta.border} bg-gray-900/90 flex flex-col items-center justify-center p-1 text-center`;
+          card.innerHTML = `
+            <span class="text-2xl">${dbItem.icon}</span>
+            <span class="text-[9px] font-semibold text-gray-200 truncate w-full mt-1">${dbItem.name}</span>
+          `;
+        } else {
+          card.className = "w-full aspect-square rounded-xl border border-gray-800 bg-gray-950/40 flex flex-col items-center justify-center p-1 text-center opacity-40 filter grayscale";
+          card.innerHTML = `
+            <span class="text-2xl">❓</span>
+            <span class="text-[9px] text-gray-500 truncate w-full mt-1">Locked</span>
+          `;
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    /* ==========================================================================
+       8. REBIRTH / PRESTIGE & DAILY CHECK-IN
+       ========================================================================== */
+
+    function performRebirth() {
+      const soulsEarned = Math.floor(gameState.wave / 10);
+      if (soulsEarned <= 0) {
+        alert("You need to reach at least Wave 10 to Rebirth!");
+        return;
+      }
+
+      gameState.souls += soulsEarned;
+      gameState.wave = 1;
+      gameState.gold = 1000;
+      spawnNewMonster();
+      updateUI();
+      saveGame();
+      alert(`Rebirth Complete! Earned +${soulsEarned} Souls.`);
+    }
+
+    function renderDailyCheckin() {
+      const container = document.getElementById("dailyDaysContainer");
+      container.innerHTML = "";
+
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const canClaim = (now - gameState.dailyLastClaim) >= oneDayMs;
+
+      for (let day = 1; day <= 7; day++) {
+        const isClaimed = (gameState.dailyStreak >= day);
+        const isCurrent = (gameState.dailyStreak + 1 === day);
+
+        const card = document.createElement("div");
+        card.className = `p-3 rounded-xl border flex flex-col items-center gap-1 ${
+          isClaimed ? 'bg-amber-950/40 border-amber-500/50 text-amber-200' :
+          isCurrent ? 'bg-purple-900/40 border-purple-500 text-white shadow-lg' : 'bg-gray-900/40 border-gray-800 text-gray-500'
+        }`;
+
+        card.innerHTML = `
+          <span class="font-bold text-[11px]">Day ${day}</span>
+          <span class="text-xl my-1">${day === 7 ? '🎁' : '💎'}</span>
+          <span class="text-[10px]">${day * 50} Gems</span>
+        `;
+        container.appendChild(card);
+      }
+
+      document.getElementById("claimDailyBtn").disabled = !canClaim;
+    }
+
+    function claimDailyReward() {
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      if ((now - gameState.dailyLastClaim) < oneDayMs) return;
+
+      gameState.dailyStreak = (gameState.dailyStreak >= 7) ? 1 : gameState.dailyStreak + 1;
+      gameState.dailyLastClaim = now;
+      gameState.gems += gameState.dailyStreak * 50;
+
+      renderDailyCheckin();
+      updateUI();
+      saveGame();
+      alert(`Claimed Day ${gameState.dailyStreak} bonus (+${gameState.dailyStreak * 50} Gems)!`);
+    }
+
+    /* ==========================================================================
+       9. SYNTH LO-FI AUDIO PLAYER (Web Audio API)
+       ========================================================================== */
+
+    let audioCtx = null;
+    let isAudioPlaying = false;
+    let audioTimer = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playLoFiChord() {
+      if (!isAudioPlaying || !audioCtx) return;
+
+      const chords = [
+        [261.63, 329.63, 392.00, 493.88], // Cmaj7
+        [220.00, 261.63, 329.63, 392.00], // Am7
+        [174.61, 220.00, 261.63, 329.63], // Fmaj7
+        [196.00, 246.94, 293.66, 349.23]  // G7
+      ];
+
+      const chord = chords[Math.floor(Math.random() * chords.length)];
+      chord.forEach(freq => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+        gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.08, audioCtx.currentTime + 0.5);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3.5);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 3.6);
+      });
+    }
+
+    function toggleAudio() {
+      initAudio();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      isAudioPlaying = !isAudioPlaying;
+      const btnIcon = document.getElementById("audioIcon");
+      const btnLabel = document.getElementById("audioLabel");
+
+      if (isAudioPlaying) {
+        btnIcon.className = "fa-solid fa-volume-high text-green-400";
+        btnLabel.innerText = "Lo-Fi ON";
+        playLoFiChord();
+        audioTimer = setInterval(playLoFiChord, 4000);
+      } else {
+        btnIcon.className = "fa-solid fa-volume-xmark text-gray-400";
+        btnLabel.innerText = "Lo-Fi OFF";
+        clearInterval(audioTimer);
+      }
+    }
+
+    /* ==========================================================================
+       10. UI SWITCHING & MAIN LOOPS
+       ========================================================================== */
+
+    function switchTab(tabKey) {
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.add("hidden"));
+      document.querySelectorAll(".tab-btn").forEach(b => {
+        b.className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition text-gray-400 hover:text-white";
+      });
+
+      if (tabKey === 'gacha') {
+        document.getElementById("gachaPanel").classList.remove("hidden");
+        document.getElementById("tabGachaBtn").className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow";
+      } else if (tabKey === 'upgrades') {
+        document.getElementById("upgradesPanel").classList.remove("hidden");
+        document.getElementById("upgradesPanel").classList.add("flex");
+        document.getElementById("tabUpgradesBtn").className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow";
+        renderUpgradesPanel();
+      } else if (tabKey === 'inventory') {
+        document.getElementById("invPanel").classList.remove("hidden");
+        document.getElementById("invPanel").classList.add("flex");
+        document.getElementById("tabInvBtn").className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow";
+        renderInventory();
+      } else if (tabKey === 'gear') {
+        document.getElementById("gearPanel").classList.remove("hidden");
+        document.getElementById("gearPanel").classList.add("flex");
+        document.getElementById("tabGearBtn").className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow";
+        renderEquippedSlots();
+      } else if (tabKey === 'pokedex') {
+        document.getElementById("pokedexPanel").classList.remove("hidden");
+        document.getElementById("pokedexPanel").classList.add("flex");
+        document.getElementById("tabPokedexBtn").className = "tab-btn flex-1 py-2 px-3 rounded-lg font-semibold text-xs transition bg-purple-600 text-white shadow";
+        renderPokedex();
+      }
+    }
+
+    function applyLanguage(lang) {
+      gameState.lang = lang;
+      const dict = TRANSLATIONS[lang] || TRANSLATIONS.ru;
+
+      for (let key in dict) {
+        const el = document.getElementById(key);
+        if (el) el.innerText = dict[key];
+      }
+
+      if (!document.getElementById("upgradesPanel").classList.contains("hidden")) {
+        renderUpgradesPanel();
+      }
+    }
+
+    function closeModals() {
+      document.getElementById("gachaModal").classList.add("hidden");
+      document.getElementById("dailyModal").classList.add("hidden");
+      document.getElementById("itemModal").classList.add("hidden");
+    }
+
+    function updateUI() {
+      document.getElementById("goldVal").innerText = Math.floor(gameState.gold).toLocaleString();
+      document.getElementById("gemVal").innerText = Math.floor(gameState.gems).toLocaleString();
+      document.getElementById("soulVal").innerText = Math.floor(gameState.souls).toLocaleString();
+      document.getElementById("snowVal").innerText = Math.floor(gameState.snowflakes).toLocaleString();
+
+      document.getElementById("stageText").innerText = `Stage ${Math.floor((gameState.wave - 1) / 5) + 1}-${((gameState.wave - 1) % 5) + 1}`;
+      document.getElementById("pityVal").innerText = `${gameState.pityCount} / 30`;
+      document.getElementById("pityBar").style.width = `${(gameState.pityCount / 30) * 100}%`;
+
+      const clickDmg = getClickPower();
+      const autoDps = getAutoDps();
+      document.getElementById("statClickPower").innerText = clickDmg.toLocaleString();
+      document.getElementById("statAutoDps").innerText = autoDps.toLocaleString();
+
+      const soulsEarned = Math.floor(gameState.wave / 10);
+      document.getElementById("tRebirthBtn").innerText = `Rebirth (+${soulsEarned} Souls)`;
+      document.getElementById("rebirthBonusText").innerText = `+${(gameState.souls * 10)}% Bonus`;
+
+      renderHpBar();
+    }
+
+    /* Background Particle Canvas Effect */
+    function initBackgroundParticles() {
+      const canvas = document.getElementById("bgCanvas");
+      const ctx = canvas.getContext("2d");
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
+      const particles = Array.from({ length: 45 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 2 + 1,
+        speedY: -(Math.random() * 0.5 + 0.2),
+        alpha: Math.random() * 0.5 + 0.2
+      }));
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          p.y += p.speedY;
+          if (p.y < 0) p.y = canvas.height;
+
+          ctx.fillStyle = `rgba(192, 132, 252, ${p.alpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        requestAnimationFrame(animate);
+      }
+      animate();
+    }
+
+    /* ==========================================================================
+       11. EVENT LISTENERS & INITIALIZATION
+       ========================================================================== */
+
+    window.onload = function() {
+      loadGame();
+      initBackgroundParticles();
+
+      // Monster manual click listener
+      document.getElementById("clickArea").addEventListener("click", handleManualClick);
+
+      // Alchemical Cauldron Ritual
+      document.getElementById("transmuteBtn").onclick = performCauldronRitual;
+
+      // Gacha Roll Buttons
+      document.getElementById("roll1Btn").onclick = () => handleGachaPull(1);
+      document.getElementById("roll10Btn").onclick = () => handleGachaPull(10);
+
+      // Mass Sell & Merge
+      document.getElementById("sellCommonBtn").onclick = () => massSell("common");
+      document.getElementById("sellRareBtn").onclick = () => massSell("rare");
+      document.getElementById("mergeAllBtn").onclick = mergeThreeToOne;
+
+      // Item Modal Action Buttons
+      document.getElementById("equipItemBtn").onclick = equipSelectedItem;
+      document.getElementById("upgradeItemBtn").onclick = upgradeSelectedItem;
+      document.getElementById("sellItemBtn").onclick = sellSelectedItem;
+
+      // Modal Closers
+      document.getElementById("closeGachaModalBtn").onclick = closeModals;
+      document.getElementById("closeDailyModalBtn").onclick = closeModals;
+      document.getElementById("closeItemModalBtn").onclick = closeModals;
+
+      // Header Actions
+      document.getElementById("audioBtn").onclick = toggleAudio;
+      document.getElementById("dailyBtn").onclick = () => {
+        renderDailyCheckin();
+        document.getElementById("dailyModal").classList.remove("hidden");
+        document.getElementById("dailyModal").classList.add("flex");
+      };
+
+      document.getElementById("claimDailyBtn").onclick = claimDailyReward;
+      document.getElementById("rebirthBtn").onclick = performRebirth;
+
+      // Language Switcher
+      const langSel = document.getElementById("langSelect");
+      langSel.value = gameState.lang;
+      langSel.onchange = (e) => applyLanguage(e.target.value);
+
+      // Initial Setup & Language Apply
+      spawnNewMonster();
+      applyLanguage(gameState.lang);
+      selectBanner(gameState.selectedBanner || 'standard');
+      updateUI();
+
+      // Auto DPS Cycle Loop (1 Second interval)
+      setInterval(() => {
+        const dps = getAutoDps();
+        if (dps > 0) {
+          updateMonsterHp(dps);
+        }
+      }, 1000);
+
+      // Save Game Interval (Every 10 Seconds)
+      setInterval(saveGame, 10000);
+    };
+  </script>
+</body>
+</html>
